@@ -1,12 +1,64 @@
-GET http://localhost:3000/posts
+GET http://localhost:3000/products
 
 ###
 
-POST http://localhost:3000/users
+GET http://localhost:3000/products/category/1
+
+###
+
+GET http://localhost:3000/products/4
+
+###
+
+POST http://localhost:3000/users/register
 Content-Type: application/json
 
 {
-    "username": "user2",
+    "username": "user3",
     "password": "12345",
     "address": "test address"
 }
+
+###
+
+POST http://localhost:3000/users/login
+Content-Type: application/json
+
+{
+    "username": "user3",
+    "password": "12345"
+}
+
+###
+
+POST http://localhost:3000/users/logout
+
+###
+
+POST http://localhost:3000/products
+Content-Type: application/json
+
+{
+    "productName": "Twilight Masquerade Elite Trainer Box",
+    "productCost": "50.00",
+    "productDescription": "Wartortle card from Twilight Masquerade",
+    "productQuantity": "10",
+    "productOwnerId": "4"
+}
+
+###
+
+PUT http://localhost:3000/products/2
+Content-Type: application/json
+
+{
+    "productName": "Squirtle Twilight Masquerade",
+    "productCost": "50.00",
+    "productDescription": "Wartortle card from Twilight Masquerade",
+    "productQuantity": "10",
+    "productOwnerId": "4"
+}
+
+###
+
+DELETE http://localhost:3000/products/3
