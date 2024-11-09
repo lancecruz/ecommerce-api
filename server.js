@@ -1,13 +1,14 @@
 const express = require('express');
 const app = express();
 const { query } = require('./db/index');
+const passport = require('passport');
+const { initialize } = require('./passport-config');
+const session = require('express-session');
 const productsRoutes = require('./routes/products');
 const ordersRoutes = require('./routes/orders');
 const usersRoutes = require('./routes/users');
 const categoriesRoutes = require('./routes/categories');
-const passport = require('passport');
-const { initialize } = require('./passport-config');
-const session = require('express-session');
+const cartsRoutes = require('./routes/cart');
 
 initialize(passport);
 
@@ -27,6 +28,7 @@ app.use('/products', productsRoutes);
 app.use('/orders', ordersRoutes);
 app.use('/users', usersRoutes);
 app.use('/category', categoriesRoutes);
+app.use('/cart', cartsRoutes);
 
 const posts = [
     { user: 'John', message: 'Love'},

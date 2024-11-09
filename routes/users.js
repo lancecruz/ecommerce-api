@@ -7,8 +7,12 @@ const passport = require('passport');
 const LocalStrategy = require('passport-local');
 const { checkAuthenticated } = require('../passport-config');
 
+const GET_ALL_USERS_QUERY = 'SELECT user_id, username, address FROM users;';
+const GET_USER_BY_ID_QUERY = 'SELECT user_id, username, address FROM users WHERE user_id = $1';
 const ADD_USER_QUERY = 'INSERT INTO users (username, password, address, created, updated) VALUES ($1, $2, $3, $4, $5)';
+const UPDATE_USER_QUERY = 'UPDATE users SET username = $1, password = $2, address = $3, updated = $4 WHERE user_id = $5 RETURNING username;'
 const SELECT_USER_BY_USERNAME_QUERY = 'SELECT * FROM users WHERE username = $1';
+const DELETE_USER_QUERY = 'DELETE FROM users WHERE user_id = $1 RETURNING username';
 
 // passport.use(new LocalStrategy(async (username, password, done) => {
 //     const user = await query('SELECT * FROM users WHERE username = $1', [username]);
@@ -53,9 +57,32 @@ const SELECT_USER_BY_USERNAME_QUERY = 'SELECT * FROM users WHERE username = $1';
 // };
 
 router.get('/', checkAuthenticated, async (req, res) => {
-    console.log(req.isAuthenticated());
-    console.log(req.user);
-    res.send('Users GET');
+    try {
+        const results = await query(GET_ALL_USERS_QUERY);
+        res.status(200).send(results.rows);
+    } catch (error) {
+        res.send(error.message);
+    }
+});
+
+router.get('/:userId', async (req, res) => {
+    const userId = req.params.userId;
+
+    if (userId == null) {
+        return res.status(404).send({message: 'No user id given.'})
+    }
+
+    try {
+        const result = await query(GET_USER_BY_ID_QUERY, [userId]);
+
+        if (result.rowCount == 0) {
+            return res.status(200).send({user: null, message: 'No user found.'});
+        }
+
+        res.status(200).send(result.rows);
+    } catch (error) {
+        res.send(error.message);     
+    }
 });
 
 router.post('/register', async (req, res) => {
@@ -96,12 +123,45 @@ router.post('/logout', checkAuthenticated, (req, res, next) => {
     });
 });
 
-router.put('/:id', (req, res) => {
-    res.send('Users PUT');
+router.put('/:userId', checkAuthenticated, async (req, res) => {
+    const userId = req.params.userId;
+    const currentDate = new Date();
+
+    if (userId == null) {
+        return res.status(404).send({message: 'No user id given.'})
+    }
+
+    try {
+        const user = await query(GET_USER_BY_ID_QUERY, [userId]);
+
+        if (user.rowCount == 0) {
+            return res.status(200).send({user: null, message: 'No user found.'});
+        }
+
+        const username = req.body.username;
+        const hashedPassword = await bcrypt.hash(req.body.password, 10);
+        const address = req.body.address;
+
+        const results = await query(UPDATE_USER_QUERY, [username, hashedPassword, address, currentDate, userId]);
+        res.status(200).send({results: results.rows[0], message: 'User updated successfully.'});
+    } catch (error) {
+        res.send(error.message);     
+    }
 });
 
-router.delete('/:id', (req, res) => {
-    res.send('Users DELETE');
+router.delete('/:userId', async (req, res) => {
+    const userId = req.params.userId;
+
+    if (userId == null) {
+        return res.status(404).send({message: 'No user id given.'})
+    }
+
+    try {
+        const results = await query(DELETE_USER_QUERY, [userId]);
+        res.status(200).send({results: results.rows[0], message: 'User deleted successfully.'});
+    } catch (error) {
+        res.send(error.message);
+    }
 });
 
 module.exports = router;

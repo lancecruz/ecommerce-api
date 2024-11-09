@@ -1,4 +1,4 @@
-GET http://localhost:3000/products
+GET http://localhost:3000/orders/1
 
 ###
 
@@ -6,7 +6,7 @@ GET http://localhost:3000/products/category/1
 
 ###
 
-GET http://localhost:3000/products/4
+GET http://localhost:3000/cart/2
 
 ###
 
@@ -39,26 +39,45 @@ POST http://localhost:3000/products
 Content-Type: application/json
 
 {
-    "productName": "Twilight Masquerade Elite Trainer Box",
+    "productName": "Surging Sparks Elite Trainer Box",
     "productCost": "50.00",
-    "productDescription": "Wartortle card from Twilight Masquerade",
-    "productQuantity": "10",
+    "productDescription": "Elite Trainer Box released for the Surging Sparks expansion.",
+    "productQuantity": "20",
     "productOwnerId": "4"
 }
 
 ###
 
-PUT http://localhost:3000/products/2
+POST http://localhost:3000/cart/2
 Content-Type: application/json
 
 {
-    "productName": "Squirtle Twilight Masquerade",
-    "productCost": "50.00",
-    "productDescription": "Wartortle card from Twilight Masquerade",
-    "productQuantity": "10",
-    "productOwnerId": "4"
+    "productId": "5",
+    "quantity": "3",
+    "totalCost": "150.00"
 }
 
 ###
 
-DELETE http://localhost:3000/products/3
+POST http://localhost:3000/cart/2/checkout
+Content-Type: application/json
+
+{
+    "userId": "5",
+    "deliveryAddress": "17 Grosvenor Court, Sutton, London"
+}
+
+###
+
+PUT http://localhost:3000/users/4
+Content-Type: application/json
+
+{
+    "username": "poopdetangs",
+    "password": "123456",
+    "address": "Sutton"
+}
+
+###
+
+DELETE http://localhost:3000/cart/10
