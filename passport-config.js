@@ -7,6 +7,7 @@ const initialize = (passport) => {
         const user = await query('SELECT * FROM users WHERE username = $1', [username]);
     
         if (user.rowCount == 0) {
+            console.log('Username not found');
             return done(null, false, { message: 'No user with that username.'});
         }
     
@@ -24,7 +25,11 @@ const initialize = (passport) => {
     passport.serializeUser((user, done) => {
         process.nextTick(() => {
             console.log('seri');
-            done(null, { userId: user.user_id, username: user.username });
+            done(null, { 
+                userId: user.user_id, 
+                username: user.username,
+                address: user.address
+            });
         });
     });
     
@@ -38,11 +43,46 @@ const initialize = (passport) => {
 };
 
 const checkAuthenticated = (req, res, next) => {
-    if (req.isAuthenticated()) {
-        return next();
-    }
+    const header = req.headers['authorization'];
+    console.log(header);
 
-    res.status(403).send('Not authenticated.');
+    if (typeof header != 'undefined') {
+        const bearer = header.split(' ');
+        const token = bearer[1];
+        console.log(token);
+        console.log(req.isAuthenticated());
+        if (req.isAuthenticated()) {
+            req.token = token;
+            return next();
+        } else {
+            res.status(403).send({
+                authenticated: false,
+                message: 'Not authenticated.'
+            });
+        };
+    } else {
+        console.log('Header is undefined');
+        res.status(403).send({
+            authenticated: false,
+            message: 'Not authenticated.'
+        });
+    }
+    
+    // const header = req.headers['authorization'];
+
+    // if (typeof header != 'undefined') {
+    //     const bearer = header.split(' ');
+    //     const token = bearer[1];
+    //     console.log(token);
+    //     if (req.isAuthenticated()) {
+    //         req.token = token;
+    //         return next();
+    //     } else {
+    //         res.send('Not Authenticatedddd');
+    //     };
+    // } else {
+    //     res.status(403).send({message: 'Not authenticated.'});
+    // };  
 };
 
 module.exports = {

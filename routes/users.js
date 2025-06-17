@@ -1,7 +1,9 @@
+require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db/index');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
 
 const passport = require('passport');
 const LocalStrategy = require('passport-local');
@@ -56,6 +58,39 @@ const DELETE_USER_QUERY = 'DELETE FROM users WHERE user_id = $1 RETURNING userna
 //     res.send('Not authenticated.');
 // };
 
+router.get('/testServer', checkAuthenticated, (req, res) => {
+    console.log(req.isAuthenticated());
+    res.send({message: 'User Authenticated Test'});
+});
+
+router.get('/account', checkAuthenticated, (req, res) => {
+    console.log('get account');
+    try {
+        jwt.verify(req.token, process.env.SECRET_KEY, ( async (err, authorizedData) => {
+            if (err) {
+                res.send({message: err});
+            } else {
+                console.log('token valid');
+                console.log(authorizedData);
+
+                //Get user account data.
+                const result = await query(GET_USER_BY_ID_QUERY, [authorizedData.userId]);
+
+                if (result.rowCount == 0) {
+                    return res.status(200).send({user: null, message: 'No user found.'});
+                }
+
+                res.status(200).send({ 
+                    message: 'User Account Data',
+                    result: result.rows[0]
+                });
+            }
+        }));
+    } catch (error) {
+        res.send({ message: error });
+    }
+});
+
 router.get('/', checkAuthenticated, async (req, res) => {
     try {
         const results = await query(GET_ALL_USERS_QUERY);
@@ -87,8 +122,11 @@ router.get('/:userId', async (req, res) => {
 
 router.post('/register', async (req, res) => {
     try {
+        console.log(req.body);
+
         if (req.body.username == undefined || req.body.username == '') {
-            return res.send('Username is empty.');
+            console.log('username where?');
+            return res.status(200).send('Username is empty.');
         }
 
         const userExists = await query(SELECT_USER_BY_USERNAME_QUERY, [req.body.username]);
@@ -103,18 +141,98 @@ router.post('/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(req.body.password, 10);
 
         let success = await query(ADD_USER_QUERY, [username, hashedPassword, address, currentDate, currentDate]);
-        res.status(201).send('User added successfully.');
+        res.status(201).send({message: 'User added successfully.'});
     } catch (error) {
         res.status(200).send('Something wrong happened.');
     }
 });
 
-router.post('/login', passport.authenticate('local'), async (req, res) => {
+const loginFailed = (err, user, info) => {
+    console.log('log in failed');
+    res.send({message: 'Nani'});
+};
+
+router.post('/login2', passport.authenticate('local', {
+    failureRedirect: '/notAuthorized'
+}), async (req, res, next) => {
     try {
-        res.send('test');
+        const token = jwt.sign(
+            {
+                id: req.user.user_id,
+                username: req.user.username,
+                address: req.user.address
+            }, 
+            process.env.SECRET_KEY,
+            {expiresIn: '10h'}
+        );
+
+        res.status(200).send({
+            success: true,
+            token: token
+        });
     } catch (error) {
         res.send(error);
     }
+});
+
+router.get('/notAuthorized', (req, res) => {
+    console.log('Not Authorized');
+});
+
+router.post('/login', async (req, res, next) => {
+    passport.authenticate('local', function (err, user, info) {
+        if (err) return next(err);
+        if (!user) {
+            console.log('User not found');
+            res.status(403).send({
+                success: false,
+                message: 'User not found'
+            });
+        } else {
+            req.login(user, (err) => {
+                if (err) {
+                    return next(err);
+                }
+
+                const token = jwt.sign(
+                    {
+                        userId: user.user_id,
+                        username: user.username,
+                        address: user.address
+                    }, 
+                    process.env.SECRET_KEY,
+                    {expiresIn: '10h'}
+                );
+
+                console.log(req.isAuthenticated());
+
+                res.status(200).send({
+                    success: true,
+                    token: token,
+                    message: 'Log in successful.'
+                });
+            })
+
+            // console.log(req.user);
+            // console.log(req.isAuthenticated());
+            // res.status(200).send({
+            //     success: true,
+            //     token: token
+            // });
+        }
+    })(req, res, next);
+
+    // try {
+    //     console.log(req.body);
+    //     res.send('test');
+    // } catch (error) {
+    //     res.send(error);
+    // }
+});
+
+router.get('/loginFailed', (req, res) => {
+    console.log(req.token);
+    res.send({message: 'Nanidd'});
 });
 
 router.post('/logout', checkAuthenticated, (req, res, next) => {
@@ -163,5 +281,17 @@ router.delete('/:userId', async (req, res) => {
         res.send(error.message);
     }
 });
+
+// app.get('/login', function(req, res, next) {
+//     /* look at the 2nd parameter to the below call */
+//     passport.authenticate('local', function(err, user, info) {
+//       if (err) { return next(err); }
+//       if (!user) { return res.redirect('/login'); }
+//       req.logIn(user, function(err) {
+//         if (err) { return next(err); }
+//         return res.redirect('/users/' + user.username);
+//       });
+//     })(req, res, next);
+// });
 
 module.exports = router;
