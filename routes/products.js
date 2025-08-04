@@ -8,7 +8,7 @@ const upload = multer({ dest: "uploads/" });
 const { checkAuthenticated } = require('../passport-config');
 const { query } = require('../db/index');
 
-const GET_ALL_PRODUCTS_QUERY = 'SELECT * FROM products';
+const GET_ALL_PRODUCTS_QUERY = 'SELECT * FROM products AS p LEFT JOIN product_image ON product_image.product_id = p.product_id LEFT JOIN product_categories ON p.product_id = product_categories.product_id LEFT JOIN categories ON product_categories.category_id = categories.category_id;';
 const GET_PRODUCT_BY_ID_QUERY = 'SELECT product_id, product_name, product_cost, product_description, product_quantity, product_owner_id, product_added_date, products.updated, username FROM products INNER JOIN users ON users.user_id = products.product_owner_id WHERE product_id = $1;'
 const GET_ALL_PRODUCTS_BY_CATEGORY_ID_QUERY = 'SELECT products.product_id, product_name, category_name FROM products INNER JOIN product_categories ON products.product_id = product_categories.product_id INNER JOIN categories ON categories.category_id = product_categories.category_id WHERE categories.category_id = $1';
 const INSERT_INTO_PRODUCTS_QUERY = 'INSERT INTO products (product_name, product_cost, product_description, product_quantity, product_owner_id, product_added_date, created, updated) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING product_id';
@@ -77,7 +77,7 @@ router.post('/add', upload.single('productPhoto'), async (req, res) => {
             
         }
 
-        fs.rename(oldPath, 'uploads/' + req.file.originalname, async (err) => {
+        fs.rename(oldPath, 'images/' + req.file.originalname, async (err) => {
             if (err) return res.json({error: 'Something happened.'});
 
             console.log(req.body);
