@@ -11,6 +11,8 @@ const { query } = require('../db/index');
 const GET_ALL_PRODUCTS_QUERY = 'SELECT * FROM products AS p LEFT JOIN product_image ON product_image.product_id = p.product_id LEFT JOIN product_categories ON p.product_id = product_categories.product_id LEFT JOIN categories ON product_categories.category_id = categories.category_id;';
 const GET_PRODUCT_BY_ID_QUERY = 'SELECT product_id, product_name, product_cost, product_description, product_quantity, product_owner_id, product_added_date, products.updated, username FROM products INNER JOIN users ON users.user_id = products.product_owner_id WHERE product_id = $1;'
 const GET_ALL_PRODUCTS_BY_CATEGORY_ID_QUERY = 'SELECT products.product_id, product_name, category_name FROM products INNER JOIN product_categories ON products.product_id = product_categories.product_id INNER JOIN categories ON categories.category_id = product_categories.category_id WHERE categories.category_id = $1';
+const GET_PRODUCT_STOCK_COUNT_QUERY = 'SELECT product_quantity FROM products WHERE product_id = $1';
+const GET_PRODUCTS_STOCK_COUNT_BY_IDS = 'SELECT product_id, product_quantity FROM products WHERE product_id = ANY ($1)';
 const INSERT_INTO_PRODUCTS_QUERY = 'INSERT INTO products (product_name, product_cost, product_description, product_quantity, product_owner_id, product_added_date, created, updated) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING product_id';
 const INSERT_INTO_PRODUCT_IMAGE = 'INSERT INTO product_image (product_id, image_path) VALUES ($1, $2) RETURNING product_id';
 const UPDATE_PRODUCT_QUERY = 'UPDATE products SET product_name = $1, product_cost = $2, product_description = $3, product_quantity = $4, product_owner_id = $5, updated = $6 WHERE product_Id = $7;';
@@ -77,7 +79,7 @@ router.post('/add', upload.single('productPhoto'), async (req, res) => {
             
         }
 
-        fs.rename(oldPath, 'images/' + req.file.originalname, async (err) => {
+        fs.rename(oldPath, 'uploads/' + req.file.originalname, async (err) => {
             if (err) return res.json({error: 'Something happened.'});
 
             console.log(req.body);
@@ -135,6 +137,41 @@ router.post('/', checkAuthenticated, async (req, res) => {
         ]);
     } catch (error) {
         res.send(error.message);
+    }
+});
+
+router.post('/checkProductQuantity', async (req, res) => {
+    try {
+        console.log(req.body);
+        const { productID } = req.body; 
+        const result = await query(GET_PRODUCT_STOCK_COUNT_QUERY, [productID]);
+
+        if (result.rowCount == 0) {
+            res.send('No product found.');
+        }
+
+        res.status(200).send(result.rows[0]);
+    } catch (error) {
+
+    }
+});
+
+router.post('/getStockCountFromRange', async (req, res) => {
+    const { productIDs } = req.body;
+    console.log(productIDs);
+        
+    try {
+        const results = await query(GET_PRODUCTS_STOCK_COUNT_BY_IDS, [productIDs]);
+
+        console.log(results);
+
+        if (results.rowCount == 0) {
+            res.send('No product found.');
+        }
+ 
+        res.status(200).send(results.rows);
+    } catch (error) {
+        console.log(error);
     }
 });
 
