@@ -1,4 +1,5 @@
 const express = require('express');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
 const { query } = require('../db/index');
 
@@ -8,6 +9,7 @@ const ADD_PRODUCT_TO_CART_QUERY = 'INSERT INTO cart_products (product_id, cart_i
 const GET_PRODUCT_QUANTITY_QUERY = 'SELECT product_quantity FROM products WHERE product_id = $1';
 const REMOVE_CART_PRODUCT_QUERY = 'DELETE FROM cart_products WHERE cart_product_id = $1 RETURNING cart_product_id';
 const CREATE_ORDER_QUERY = 'INSERT INTO orders (cart_id, total_cost, order_date, order_recipient_id, delivery_address, complete, created, updated) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING order_id;';
+const GET_PRODUCT_BY_ID_QUERY = 'SELECT product_id, product_name, product_cost, product_description, product_quantity, product_owner_id, product_added_date, products.updated, username FROM products INNER JOIN users ON users.user_id = products.product_owner_id WHERE product_id = $1;'
 
 router.get('/:cartId', async (req, res) => {
     const cartId = req.params.cartId;
@@ -34,6 +36,37 @@ router.post('/', async (req, res) => {
         res.send(results);
     } catch (error) {
         res.send(error.message);
+    }
+});
+
+// Checkout
+router.post('/create-checkout-session', async (req, res) => {
+    try {
+        // let testArr = req.body.map(async (item) => {
+        //     const product = await query(GET_PRODUCT_BY_ID_QUERY, [item.id]);
+        //     console.log(product.rows[0]);
+        // });
+
+        const session = await stripe.checkout.sessions.create({
+            line_items: [{
+                price_data: {
+                    currency: 'usd',
+                    product_data: {
+                        name: 'test'
+                    },
+                    unit_amount: 50
+                },
+                quantity: 5
+            }],
+            mode: 'payment',
+            success_url: `${process.env.SERVER_URL}/cart`,
+            cancel_url:  `${process.env.SERVER_URL}/cart`
+        });
+
+        console.log(session);
+        res.json({url: session.url});
+    } catch (error) {
+        console.error(error.message);
     }
 });
 
