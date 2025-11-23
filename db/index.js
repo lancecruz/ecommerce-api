@@ -16,5 +16,6 @@ const query = async (text, params, callback) => {
 };
 
 module.exports = {
+    Pool,
     query
 };

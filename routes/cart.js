@@ -2,6 +2,8 @@ const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
 const { query } = require('../db/index');
+const { createOrder } = require('../services/orderService');
+const jwt = require('jsonwebtoken');
 
 const GET_CART_QUERY = 'SELECT carts.cart_id, products.product_name, products.product_cost, cart_products.quantity, cart_products.total_cost FROM carts INNER JOIN cart_products ON cart_products.cart_id = carts.cart_id INNER JOIN products ON cart_products.product_id = products.product_id WHERE carts.cart_id = $1;';
 const ADD_CART_QUERY = 'INSERT INTO carts (user_id, isActive, created, updated) VALUES ($1, $2, $3, $4) RETURNING cart_id;';
@@ -10,6 +12,7 @@ const GET_PRODUCT_QUANTITY_QUERY = 'SELECT product_quantity FROM products WHERE 
 const REMOVE_CART_PRODUCT_QUERY = 'DELETE FROM cart_products WHERE cart_product_id = $1 RETURNING cart_product_id';
 const CREATE_ORDER_QUERY = 'INSERT INTO orders (cart_id, total_cost, order_date, order_recipient_id, delivery_address, complete, created, updated) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING order_id;';
 const GET_PRODUCT_BY_ID_QUERY = 'SELECT product_id, product_name, product_cost, product_description, product_quantity, product_owner_id, product_added_date, products.updated, username FROM products INNER JOIN users ON users.user_id = products.product_owner_id WHERE product_id = $1;'
+
 
 router.get('/:cartId', async (req, res) => {
     const cartId = req.params.cartId;
@@ -41,11 +44,22 @@ router.post('/', async (req, res) => {
 
 // Checkout
 router.post('/create-checkout-session', async (req, res) => {
+    let userId = null;
+
     try {
+        const { orderItems, token } = req.body;
         // let testArr = req.body.map(async (item) => {
         //     const product = await query(GET_PRODUCT_BY_ID_QUERY, [item.id]);
         //     console.log(product.rows[0]);
         // });
+
+        if (token) {
+            const decodedToken = jwt.decode(token);
+            userId = decodedToken.userId;
+            console.log(decodedToken);
+        }
+
+        const orderNumber = await createOrder(orderItems, userId);
 
         const session = await stripe.checkout.sessions.create({
             line_items: [{
@@ -59,11 +73,11 @@ router.post('/create-checkout-session', async (req, res) => {
                 quantity: 5
             }],
             mode: 'payment',
-            success_url: `${process.env.SERVER_URL}/cart`,
-            cancel_url:  `${process.env.SERVER_URL}/cart`
+            success_url: `${process.env.SERVER_URL}/order-success/${orderNumber}`,
+            cancel_url:  `${process.env.SERVER_URL}/cart/`
         });
 
-        console.log(session);
+        //console.log(session);
         res.json({url: session.url});
     } catch (error) {
         console.error(error.message);
