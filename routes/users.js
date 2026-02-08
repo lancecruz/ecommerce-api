@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const LocalStrategy = require('passport-local');
 const { checkAuthenticated } = require('../passport-config');
+const authenticateToken = require('../services/authenticateToken');
 
 const GET_ALL_USERS_QUERY = 'SELECT user_id, username, address FROM users;';
 const GET_USER_BY_ID_QUERY = 'SELECT user_id, username, address FROM users WHERE user_id = $1';
@@ -63,29 +64,19 @@ router.get('/testServer', checkAuthenticated, (req, res) => {
     res.send({message: 'User Authenticated Test'});
 });
 
-router.get('/account', checkAuthenticated, (req, res) => {
+router.get('/account', authenticateToken, checkAuthenticated, async (req, res) => {
     console.log('get account');
     try {
-        jwt.verify(req.token, process.env.SECRET_KEY, ( async (err, authorizedData) => {
-            if (err) {
-                res.send({message: err});
-            } else {
-                console.log('token valid');
-                console.log(authorizedData);
+        const result = await query(GET_USER_BY_ID_QUERY, [req.user.sub]);
 
-                //Get user account data.
-                const result = await query(GET_USER_BY_ID_QUERY, [authorizedData.userId]);
+        if (result.rowCount == 0) {
+            return res.status(200).send({user: null, message: 'No user found.'});
+        }
 
-                if (result.rowCount == 0) {
-                    return res.status(200).send({user: null, message: 'No user found.'});
-                }
-
-                res.status(200).send({ 
-                    message: 'User Account Data',
-                    result: result.rows[0]
-                });
-            }
-        }));
+        res.status(200).send({ 
+            message: 'User Account Data',
+            result: result.rows[0]
+        });
     } catch (error) {
         res.send({ message: error });
     }
@@ -196,12 +187,15 @@ router.post('/login', async (req, res, next) => {
 
                 const token = jwt.sign(
                     {
-                        userId: user.user_id,
-                        username: user.username,
-                        address: user.address
+                        sub: user.user_id,
+                        iss: "https://test.com",
+                        aud: "your-api",
                     }, 
                     process.env.SECRET_KEY,
-                    {expiresIn: '10h'}
+                    {
+                        expiresIn: '5m',
+                        algorithm: "HS256"
+                    }
                 );
 
                 console.log(req.isAuthenticated());

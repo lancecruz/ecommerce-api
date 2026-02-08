@@ -3,9 +3,15 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
 const { query } = require('../db/index');
 const { createOrder } = require('../services/orderService');
+const { checkAuthenticated } = require('../passport-config');
 const jwt = require('jsonwebtoken');
+const authenticateToken = require('../services/authenticateToken');
+const { hasEnoughQuantity, getUserCart, updateCartProductQuantity, insertCartProduct } = require('../db/cart.queries');
+const { productExistsQuery } = require('../db/product.queries');
+const { sendSuccess, sendError } = require('../services/utilities');
 
 const GET_CART_QUERY = 'SELECT carts.cart_id, products.product_name, products.product_cost, cart_products.quantity, cart_products.total_cost FROM carts INNER JOIN cart_products ON cart_products.cart_id = carts.cart_id INNER JOIN products ON cart_products.product_id = products.product_id WHERE carts.cart_id = $1;';
+const GET_CART_BY_USER_ID_QUERY = 'SELECT products.product_id, cart_products.quantity, products.product_name, products.product_description, products.product_cost, categories.category_name, product_image.image_path FROM carts INNER JOIN cart_products ON cart_products.cart_id = carts.cart_id INNER JOIN products ON cart_products.product_id = products.product_id INNER JOIN product_categories ON products.product_id = product_categories.product_id INNER JOIN categories ON product_categories.category_id = categories.category_id LEFT JOIN product_image ON products.product_id = product_image.product_id WHERE user_id = $1;';
 const ADD_CART_QUERY = 'INSERT INTO carts (user_id, isActive, created, updated) VALUES ($1, $2, $3, $4) RETURNING cart_id;';
 const ADD_PRODUCT_TO_CART_QUERY = 'INSERT INTO cart_products (product_id, cart_id, quantity, total_cost) VALUES ($1, $2, $3, $4) RETURNING cart_product_id';
 const GET_PRODUCT_QUANTITY_QUERY = 'SELECT product_quantity FROM products WHERE product_id = $1';
@@ -13,6 +19,23 @@ const REMOVE_CART_PRODUCT_QUERY = 'DELETE FROM cart_products WHERE cart_product_
 const CREATE_ORDER_QUERY = 'INSERT INTO orders (cart_id, total_cost, order_date, order_recipient_id, delivery_address, complete, created, updated) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING order_id;';
 const GET_PRODUCT_BY_ID_QUERY = 'SELECT product_id, product_name, product_cost, product_description, product_quantity, product_owner_id, product_added_date, products.updated, username FROM products INNER JOIN users ON users.user_id = products.product_owner_id WHERE product_id = $1;'
 
+router.get("/", authenticateToken, async (req, res) => {
+    try {
+        const results = await query(GET_CART_BY_USER_ID_QUERY, [req.user.sub]);
+
+        if (results.rowCount == 0) {
+            return res.status(200).json({ message: "No cart items found." });
+        }
+
+        res.status(200).json({ results: results.rows, message: "Success" });
+    } catch (error) {
+        
+    }
+    // res.json({
+    //     message: "Access Granted",
+    //     user: req.user
+    // });
+});
 
 router.get('/:cartId', async (req, res) => {
     const cartId = req.params.cartId;
@@ -27,6 +50,52 @@ router.get('/:cartId', async (req, res) => {
         res.status(200).send({results: results.rows, message: 'Cart found successfully.'});
     } catch (error) {
         res.send(error.message);
+    }
+});
+
+router.get('/:userId', checkAuthenticated, async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        console.log(userId);
+
+        res.send({ message: "testing "});
+    } catch (error) {
+        
+    }
+});
+
+router.post('/update-cart-item-quantity', authenticateToken, async (req, res) => {
+    console.log("Update Cart Item Quantity");
+
+    try {
+        const { id, orderQty } = req.body.item;
+        const result = await query(hasEnoughQuantity(), [orderQty, id]);
+
+        if (result.rows[0].has_enough_quantity) {
+            const userCart = await query(getUserCart(), [req.user.sub]);
+
+            if (userCart.rowCount > 0) {
+                // Check if item to update exists.
+                const productExists = await query(productExistsQuery(), [id]);
+                if (productExists.rows[0].product_exists) {
+                    const result = await query(updateCartProductQuantity(), [orderQty, userCart.rows[0].cart_id, id]);
+                    console.log(result);
+                    
+                    sendSuccess(res, {
+                        updatedQuantity: result.rows[0].quantity,
+                        productID: result.rows[0].product_id
+                    });
+                } else {
+                    return sendError(res, 404, "Product not found.", "NOT_FOUND");
+                }
+            } else {
+                res.json({ message: "User has no cart." });
+            }
+        } else {
+            res.json({ message: "Not enough in stock." });
+        }
+    } catch (error) {
+        res.send(error);
     }
 });
 
@@ -55,7 +124,7 @@ router.post('/create-checkout-session', async (req, res) => {
 
         if (token) {
             const decodedToken = jwt.decode(token);
-            userId = decodedToken.userId;
+            userId = decodedToken.sub;
             console.log(decodedToken);
         }
 
@@ -81,6 +150,35 @@ router.post('/create-checkout-session', async (req, res) => {
         res.json({url: session.url});
     } catch (error) {
         console.error(error.message);
+    }
+});
+
+router.post('/items', authenticateToken, async(req, res) => {
+    const userID = req.user.sub;
+    const { id, orderQty, productName, description, productPrice } = req.body;
+
+    try {
+        if (!userID) {
+            return sendError(res, 404, "No User ID given.", "NO_USER_ID");
+        }
+
+        const userCart = await query(getUserCart(), [userID]);
+
+        if (!userCart) {
+            return sendError(res, 404, "Cart not found.", "NOT_FOUND");
+        }
+
+        const result = await query(insertCartProduct(), [id, userCart.rows[0].cart_id, orderQty]);
+        sendSuccess(res, {
+            id: result.rows[0].product_id,
+            orderQty: result.rows[0].quantity,
+            productName,
+            description,
+            productPrice
+        }, {});
+        
+    } catch (error) {
+        sendError(res);
     }
 });
 

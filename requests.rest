@@ -64,12 +64,13 @@ Content-Type: application/json
 
 ###
 
-POST http://localhost:3000/cart/2/checkout
+POST http://localhost:4000/cart/update-cart-item-quantity
 Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjE4LCJpc3MiOiJodHRwczovL3Rlc3QuY29tIiwiYXVkIjoieW91ci1hcGkiLCJpYXQiOjE3NzAxMjc1MTYsImV4cCI6MTc3MDEyNzgxNn0.6YNFMOU6r8MjhZIjQgtarnmPzQrt11V9ULZTSKs_kgc
 
 {
-    "userId": "5",
-    "deliveryAddress": "17 Grosvenor Court, Sutton, London"
+    "id": "4",
+    "orderQty": "3"
 }
 
 ###
